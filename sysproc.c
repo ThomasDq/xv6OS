@@ -88,3 +88,10 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int sys_getcount(void){
+	int n;
+	if(argint(0, &n) < 0)
+		return -1;
+	return(proc->callcount[n-1]);
+}
