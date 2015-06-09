@@ -45,7 +45,7 @@ allocproc(void)
   release(&ptable.lock);
   return 0;
 
-found:
+  found:
   p->state = EMBRYO;
   p->pid = nextpid++;
   release(&ptable.lock);
@@ -56,11 +56,11 @@ found:
     return 0;
   }
   sp = p->kstack + KSTACKSIZE;
-  
+
   // Leave room for trap frame.
   sp -= sizeof *p->tf;
   p->tf = (struct trapframe*)sp;
-  
+
   // Set up new context to start executing at forkret,
   // which returns to trapret.
   sp -= 4;
@@ -73,8 +73,8 @@ found:
 
 
   for(i = 0; i < sizeof(p->callcount)/sizeof(int); i++){
- 	  p->callcount[i] = 0;
-   }
+    p->callcount[i] = 0;
+  }
 
   return p;
 }
@@ -86,7 +86,7 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
-  
+
   p = allocproc();
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -114,7 +114,7 @@ int
 growproc(int n)
 {
   uint sz;
-  
+
   sz = proc->sz;
   if(n > 0){
     if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
@@ -250,6 +250,7 @@ wait(void)
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
+  return 0;
 }
 
 //PAGEBREAK: 42
@@ -334,12 +335,12 @@ forkret(void)
 
   if (first) {
     // Some initialization functions must be run in the context
-    // of a regular process (e.g., they call sleep), and thus cannot 
+    // of a regular process (e.g., they call sleep), and thus cannot
     // be run from main().
     first = 0;
     initlog();
   }
-  
+
   // Return to "caller", actually trapret (see allocproc).
 }
 
@@ -433,18 +434,18 @@ void
 procdump(void)
 {
   static char *states[] = {
-  [UNUSED]    "unused",
-  [EMBRYO]    "embryo",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
+      [UNUSED]    "unused",
+      [EMBRYO]    "embryo",
+      [SLEEPING]  "sleep ",
+      [RUNNABLE]  "runble",
+      [RUNNING]   "run   ",
+      [ZOMBIE]    "zombie"
   };
   int i;
   struct proc *p;
   char *state;
   uint pc[10];
-  
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -460,6 +461,85 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+
+int thread_create(void (*tmain)(void *), void *stack, void *arg){
+  int i, pid;
+  struct proc *np;
+
+  // Allocate process.
+  if((np = allocproc()) == 0)
+    return -1;
+
+  // Copy process state from p.
+  np->sz = proc->sz;	//XXX Size?
+  np->pgdir = proc->pgdir;	//Same page table for both parent and child
+  np->kstack = (char*) stack;
+  np->parent = proc;
+  *np->tf = *proc->tf;	//trap frame is the same
+
+  // Clear %eax so that thread_create returns 0 in the child.
+  np->tf->eax = 0;
+
+  // Same file handles for the child thread
+  for(i = 0; i < NOFILE; i++)
+    if(proc->ofile[i])
+      np->ofile[i] = proc->ofile[i];
+  np->cwd = idup(proc->cwd);	// Child's Instruction Pointer is set to next instruction
+
+  pid = np->pid;
+
+  np->state = RUNNABLE;
+  safestrcpy(np->name, proc->name, sizeof(proc->name)); //TODO name and count number of child threads
+  return pid;
+}
+
+int thread_join(void **stack){
+  struct proc *p;
+  int havetkids, pid;
+  int number_threads =  (int)(sizeof(stack)/sizeof(stack[0]));
+  void* s;
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for zombie children.
+    havetkids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      //Check if process is a child of current one
+      if(p->parent != proc)
+        continue;
+      //Check if process is actually a THREAD
+      for(s = stack; (char**) s < (char**)&stack[number_threads]; s++){
+        if((char*)s == p->kstack){
+          havetkids = 1;
+          if(p->state == ZOMBIE){
+            // Found one.
+            pid = p->pid;
+            kfree(p->kstack);
+            p->kstack = 0;
+            freevm(p->pgdir);
+            p->state = UNUSED;
+            p->pid = 0;
+            p->parent = 0;
+            p->name[0] = 0;
+            p->killed = 0;
+            release(&ptable.lock);
+            return pid;
+          }
+        }
+      }// /end for(s = stack ..
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havetkids || proc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(proc, &ptable.lock);  //DOC: wait-sleep
+  }
+  return 0;
 }
 
 

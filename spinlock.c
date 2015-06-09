@@ -8,6 +8,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "spinlock.h"
+#include <stdio.h>
 
 void
 initlock(struct spinlock *lk, char *name)
@@ -115,3 +116,43 @@ popcli(void)
     sti();
 }
 
+// MUTEX HANDELING
+
+int mutexindex = 0;
+int mutexholder[NMUTEX];
+struct spinlock mutexes[NMUTEX];
+
+int mtx_lock(int lock_id){
+  // check for index correctness
+  if(lock_id < 0 || lock_id > mutexindex){
+    return -1;
+  }
+  acquire(&mutexes[lock_id]);
+  mutexholder[lock_id] = proc->pid;
+  return 0;
+}
+
+int mtx_create(int locked){
+  char* name = "mutex";
+  //Check is a mutex is available
+  if(mutexindex < NMUTEX){
+//    sprintf(name, "mutex%d", mutexindex);
+    initlock(&mutexes[mutexindex], name);
+    if(locked){
+      mtx_lock(mutexindex);
+    }
+    return(mutexindex++);
+  }
+  return -1;
+}
+
+int mtx_unlock(int lock_id){
+  if(lock_id < 0 || lock_id > mutexindex){
+    return -1;
+  }
+  if(mutexholder[lock_id] != proc->pid){
+    return -2;
+  }
+  acquire(&mutexes[lock_id]);
+  return 0;
+}
