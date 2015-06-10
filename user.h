@@ -23,6 +23,11 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int getcount(int sys_call);
+int thread_create(void (*tmain)(void *), void *stack, void *arg);
+int thread_join(void **stack);
+int mtx_create(int locked);
+int mtx_lock(int lock_id);
+int mtx_unlock(int lock_id);
 
 // ulib.c
 int stat(char*, struct stat*);

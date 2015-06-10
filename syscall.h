@@ -25,7 +25,13 @@
 #define SYS_mkdir  		20
 #define SYS_close  		21
 #define SYS_getcount 	22
+#define SYS_thcreate  23
+#define SYS_thjoin    24
+#define SYS_mtxcreate 25
+#define SYS_mtxlock   26
+#define SYS_mtxunlock 27
 
-#define SYS_callnumber	22
+
+#define SYS_callnumber	27
 
 #endif /* SYSCALL_H */
