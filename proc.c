@@ -71,7 +71,6 @@ allocproc(void)
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-
   for(i = 0; i < sizeof(p->callcount)/sizeof(int); i++){
     p->callcount[i] = 0;
   }
@@ -160,9 +159,12 @@ fork(void)
       np->ofile[i] = filedup(proc->ofile[i]);
   np->cwd = idup(proc->cwd);
 
-  pid = np->pid;
+  np->isthread = 0;
   np->state = RUNNABLE;
   safestrcpy(np->name, proc->name, sizeof(proc->name));
+
+  pid = np->pid;
+
   return pid;
 }
 
@@ -475,10 +477,11 @@ int thread_create(void (*tmain)(void *), void *stack, void *arg){
   // Copy process state from p.
   np->sz = proc->sz;	//XXX Size?
   np->pgdir = proc->pgdir;	//Same page table for both parent and child
-  np->kstack = (char*) stack;
+  np->kstack = proc->kstack;
   np->parent = proc;
-  *np->tf = *proc->tf;	//trap frame is the same
-
+  *np->tf = *proc->tf;	//trap frame is -almost- the same
+  np->tf->eip = (uint)(tmain+1);
+  np->tf->esp = (uint)(stack);
   // Clear %eax so that thread_create returns 0 in the child.
   np->tf->eax = 0;
 
@@ -486,52 +489,49 @@ int thread_create(void (*tmain)(void *), void *stack, void *arg){
   for(i = 0; i < NOFILE; i++)
     if(proc->ofile[i])
       np->ofile[i] = proc->ofile[i];
-  np->cwd = idup(proc->cwd);	// Child's Instruction Pointer is set to next instruction
+  np->cwd = idup(proc->cwd);
 
   pid = np->pid;
 
   np->state = RUNNABLE;
   safestrcpy(np->name, proc->name, sizeof(proc->name)); //TODO name and count number of child threads
+
+  np->isthread = 1;
+
   return pid;
 }
 
 int thread_join(void **stack){
   struct proc *p;
-  int havetkids, pid;
-  int number_threads =  (int)(sizeof(stack)/sizeof(stack[0]));
-  void* s;
+  int havekids, pid;
+
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for zombie children.
-    havetkids = 0;
+    havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      //Check if process is a child of current one
-      if(p->parent != proc)
+      //check if proc is a child of p and a thread
+      if(p->parent != proc && p->isthread)
         continue;
-      //Check if process is actually a THREAD
-      for(s = stack; (char**) s < (char**)&stack[number_threads]; s++){
-        if((char*)s == p->kstack){
-          havetkids = 1;
-          if(p->state == ZOMBIE){
-            // Found one.
-            pid = p->pid;
-            kfree(p->kstack);
-            p->kstack = 0;
-            freevm(p->pgdir);
-            p->state = UNUSED;
-            p->pid = 0;
-            p->parent = 0;
-            p->name[0] = 0;
-            p->killed = 0;
-            release(&ptable.lock);
-            return pid;
-          }
-        }
-      }// /end for(s = stack ..
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->state = UNUSED;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        release(&ptable.lock);
+        *stack= (void*)p->tf->esp;
+        return pid;
+      }
     }
 
     // No point waiting if we don't have any children.
-    if(!havetkids || proc->killed){
+    if(!havekids || proc->killed){
       release(&ptable.lock);
       return -1;
     }

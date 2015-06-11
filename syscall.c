@@ -99,11 +99,11 @@ extern int sys_uptime(void);
 extern int sys_wait(void);
 extern int sys_write(void);
 extern int sys_getcount(void);
-extern int sys_thcreate(void);
-extern int sys_thjoin(void);
-extern int sys_mtxcreate(void);
-extern int sys_mtxlock(void);
-extern int sys_mtxunlock(void);
+extern int sys_thread_create(void);
+extern int sys_thread_join(void);
+extern int sys_mtx_create(void);
+extern int sys_mtx_lock(void);
+extern int sys_mtx_unlock(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    	sys_fork,
@@ -128,11 +128,11 @@ static int (*syscalls[])(void) = {
 [SYS_mkdir]   	sys_mkdir,
 [SYS_close]   	sys_close,
 [SYS_getcount]	sys_getcount,
-[SYS_thcreate]  sys_thcreate,
-[SYS_thjoin]    sys_thjoin,
-[SYS_mtxcreate] sys_mtxcreate,
-[SYS_mtxlock]   sys_mtxlock,
-[SYS_mtxunlock] sys_mtxunlock
+[SYS_thread_create]  sys_thread_create,
+[SYS_thread_join]    sys_thread_join,
+[SYS_mtx_create] sys_mtx_create,
+[SYS_mtx_lock]   sys_mtx_lock,
+[SYS_mtx_unlock] sys_mtx_unlock
 };
 
 void syscall(void){

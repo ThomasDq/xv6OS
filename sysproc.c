@@ -102,37 +102,37 @@ int sys_getcount(void){
   return(proc->callcount[n-1]);
 }
 
-int sys_thcreate(void){
+int sys_thread_create(void){
   char *funct, *stack, *arg;
   //arg checking
-  if(argptr(0, &funct, 1) < 0 || argptr(1, &stack, 1) || argptr(2, &arg, 1)) //XXX
+  if(argptr(0, &funct, 1) < 0 || argptr(1, &stack, 0) || argptr(2, &arg, 0)) //XXX
     return -1;
 
   return thread_create((void*)funct, (void*)stack, (void*) arg);
 }
 
-int sys_thjoin(void){
+int sys_thread_join(void){
   char* stacks;
   if(argptr(0, &stacks, 1) < 0)
     return -1;
   return thread_join((void**)stacks);
 }
 
-int sys_mtxcreate(void){
+int sys_mtx_create(void){
   int locked;
   if(argint(0, &locked) < 0)
     return -1;
   return mtx_create(locked);
 }
 
-int sys_mtxlock(void){
+int sys_mtx_lock(void){
   int lock_id;
   if(argint(0, &lock_id) < 0)
     return -1;
   return mtx_lock(lock_id);
 }
 
-int sys_mtxunlock(void){
+int sys_mtx_unlock(void){
   int lock_id;
   if(argint(0, &lock_id) < 0)
     return -1;
