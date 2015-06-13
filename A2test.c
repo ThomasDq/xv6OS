@@ -11,16 +11,20 @@ int i = 0;
 void threadmain(void* arg){
   i++;
   printf(1,"child i = %d\n", i);
+  sleep(100);
+  printf(1,"child end sleep\n", i);
+  exit();
 //  int pid = getpid();
 //  kill(pid);
 }
+
 void parent (){
-  char* stack = (char*)malloc(64*sizeof(char));
+  char stack[128];
   printf(1,"parent i = %d\n", i);
   int i = thread_create(*threadmain, (void*)stack, (void*)(0));
-//  sleep(10);
-  thread_join((void**)&stack);
+//  sleep(2);
   printf(1,"parent i = %d\n", i);
+  thread_join((void**)&stack);
 //  printf(1,"parent over\n", i);
 }
 

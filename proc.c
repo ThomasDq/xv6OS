@@ -469,21 +469,28 @@ procdump(void)
 int thread_create(void (*tmain)(void *), void *stack, void *arg){
   int i, pid;
   struct proc *np;
-
+  uint sp = 127; // TODO get somehow size of stack
+  uint * ustack = stack;
   // Allocate process.
   if((np = allocproc()) == 0)
     return -1;
 
   // Copy process state from p.
-  np->sz = proc->sz;	//XXX Size?
+  np->sz = proc->sz;
   np->pgdir = proc->pgdir;	//Same page table for both parent and child
   np->kstack = proc->kstack;
   np->parent = proc;
-  *np->tf = *proc->tf;	//trap frame is -almost- the same
-  np->tf->eip = (uint)(tmain+1);
-  np->tf->esp = (uint)(stack);
-  // Clear %eax so that thread_create returns 0 in the child.
-  np->tf->eax = 0;
+  //  *np->tf = *proc->tf;	//trap frame is -almost- the same
+  np->context->eip = (uint)(tmain);
+  //user stack init
+  ustack[0] = 0xffffffff;        // fake return PC
+  ustack[1] = 0;                 // only one argument
+  ustack[2] = (uint)arg;               // argv pointer
+  ustack[3] = 0;
+  sp -= 4*4;
+
+  if(copyout(proc->pgdir, sp, ustack, 4*4) < 0)
+      return -1;
 
   // Same file handles for the child thread
   for(i = 0; i < NOFILE; i++)

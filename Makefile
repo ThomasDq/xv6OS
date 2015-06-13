@@ -169,6 +169,7 @@ UPROGS=\
 	_bigtest\
 	_getcount\
 	_A2test\
+	_prod\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
