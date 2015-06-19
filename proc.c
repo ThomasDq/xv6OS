@@ -467,6 +467,9 @@ procdump(void)
 
 
 int thread_create(void (*tmain)(void *), void *stack, void *arg){
+
+//  PREVIOUS IMPLEMENTATION
+  /*
   int i, pid;
   struct proc *np;
   uint sp = 127; // TODO get somehow size of stack
@@ -474,7 +477,6 @@ int thread_create(void (*tmain)(void *), void *stack, void *arg){
   // Allocate process.
   if((np = allocproc()) == 0)
     return -1;
-
   // Copy process state from p.
   np->sz = proc->sz;
   np->pgdir = proc->pgdir;	//Same page table for both parent and child
@@ -488,10 +490,7 @@ int thread_create(void (*tmain)(void *), void *stack, void *arg){
   ustack[2] = (uint)arg;               // argv pointer
   ustack[3] = 0;
   sp -= 4*4;
-
-  if(copyout(proc->pgdir, sp, ustack, 4*4) < 0)
-      return -1;
-
+  np->tf->esp = sp;
   // Same file handles for the child thread
   for(i = 0; i < NOFILE; i++)
     if(proc->ofile[i])
@@ -502,10 +501,27 @@ int thread_create(void (*tmain)(void *), void *stack, void *arg){
 
   np->state = RUNNABLE;
   safestrcpy(np->name, proc->name, sizeof(proc->name)); //TODO name and count number of child threads
-
+  //TODO copy of callcount
   np->isthread = 1;
-
   return pid;
+*/
+  uint maxidx = 31;
+  uint ssize = 4*maxidx + 4;
+  uint sp = (uint)stack + ssize; //XXX get size of stack?
+  uint * ustack = (uint *)stack;
+  //user stack init
+  ustack[maxidx - 0] = 0xffffffff;        // fake return PC
+  ustack[maxidx - 1] = 1;                 // only one argument
+  ustack[maxidx - 2] = (uint)arg;         // argv pointer
+  ustack[maxidx - 3] = sp;
+  ustack[maxidx - 4] = 0;
+  sp -= 4*4;
+  proc->tf->esp = sp;
+  //  proc->context->ebp = (uint)ustack;
+  proc->tf->ebp = (uint)ustack + 4;
+  proc->tf->eip = (uint)(tmain);
+  return 0;
+
 }
 
 int thread_join(void **stack){
