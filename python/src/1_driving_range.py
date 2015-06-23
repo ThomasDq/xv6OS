@@ -52,10 +52,14 @@ def grab_bucket(golfer_id):
     stash_lock.acquire()
     # if stash is empty, call cart 
     if stash == 0:
+        #signal golfers that field is unavailable
+        field_open = False
+        field_lock.acquire()
+        field_open = True               # since this thread has field_lock, no one can shoot a ball
         printf("##############################################\nSTASH = " + str(stash) + ";")
         stash_empty.release()           # signal cart
-#         stash_lock.release()            # release stash -> not necessary since cart was called, and is now the only one to modify stash
         stash_filled.acquire()          # wait for cart signal
+        field_lock.release()
     
     ball_taken = min(stash,bucket_size)
     stash -= ball_taken                 # grab balls
@@ -71,21 +75,22 @@ def golfer(number):
     golfer_id = "Golfer "+ str(number)
     while run:
         #fill one's bucket
-        printf(golfer_id + " calling for bucket.")
         bucket = grab_bucket(golfer_id)
         for i in range(0,bucket):      # for each ball in bucket, shoot it
             #check if field is safe
+            waiting_lock.acquire()
             if not field_open:
-                waiting_lock.acquire()
+                printf(golfer_id + "has to wait to pursue.")
                 waiting_golfers += 1
                 waiting_lock.release()
                 field_open_wait.acquire()
-            
+            else:
+                waiting_lock.release()
             #shoot
             field_lock.acquire()
             balls_on_field += 1             # swing (maybe simulate with a random sleep)
-            field_lock.release()
             printf(golfer_id + " hit ball " + str(i) + ".")
+            field_lock.release()
     printf(golfer_id + " stops.") 
 ##
 
@@ -95,23 +100,15 @@ def cart():
     while cart_run:
         #wait for grab_bucket signal
         stash_empty.acquire()
-        #signal golfers that field is unavailable
-        field_open = False
         #get field lock to access balls_on field
-        field_lock.acquire()
+        #field_lock.acquire()
         printf("Cart entering field.")
-        
-        field_open = True   # since this thread has field_lock, no one can shoot a ball
-        
-        sleep(1)            # wait for all threads that might have entered the "check if field is safe" if branch to wait for signal
-                            # Since field_open is True, the other threads will block on field_lock
                     
-        
-        # The thread having the stash lock is the one that woke cart up
-        # and this thread is blocked, waiting for cart to operate
-        # Therefore it is safe to modify the stash variable without using its lock
+        # The thread that woke up cart has both the field and stash lock
+        # therefore it's safe to modify ball_on_field and stash
         stash += balls_on_field
-        printf("Cart done, gathered "+ str(balls_on_field) +" balls.\n-- STASH = " + str(stash) + " --")
+        printf("Cart done, gathered "+ str(balls_on_field) +" balls. STASH = " + str(stash) + 
+               ".\n##############################################")
         balls_on_field = 0 
         
         waiting_lock.acquire()
@@ -141,9 +138,9 @@ if __name__ == '__main__':
         golfers_th.append(Thread(target=golfer, args=[i]))
         golfers_th[i].start()
     
-    sleep(10)
+    sleep(5)
     run = False
-    printf("Range is closing, golfers can finish their buckets.")
+    printf("Range is closing, calling for a bucket is not allowed past this point.")
     sleep(1)
     cart_run = False
     stash_empty.release()
