@@ -70,6 +70,7 @@ allocproc(void)
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+  p->isthread = 0;
 
   for(i = 0; i < sizeof(p->callcount)/sizeof(int); i++){
     p->callcount[i] = 0;
@@ -230,9 +231,13 @@ wait(void)
       if(p->state == ZOMBIE){
         // Found one.
         pid = p->pid;
-        kfree(p->kstack);
+        // free VM and stack only if child is not a thread
+        if(p->isthread == 0){
+          kfree(p->kstack);
+          freevm(p->pgdir);
+        }
         p->kstack = 0;
-        freevm(p->pgdir);
+        p->pgdir = 0;
         p->state = UNUSED;
         p->pid = 0;
         p->parent = 0;
@@ -468,47 +473,26 @@ procdump(void)
 
 int thread_create(void (*tmain)(void *), void *stack, void *arg){
 
-//  PREVIOUS IMPLEMENTATION
-  /*
-  int i, pid;
-  struct proc *np;
-  uint sp = 127; // TODO get somehow size of stack
-  uint * ustack = stack;
-  // Allocate process.
-  if((np = allocproc()) == 0)
-    return -1;
-  // Copy process state from p.
-  np->sz = proc->sz;
-  np->pgdir = proc->pgdir;	//Same page table for both parent and child
-  np->kstack = proc->kstack;
-  np->parent = proc;
-  //  *np->tf = *proc->tf;	//trap frame is -almost- the same
-  np->context->eip = (uint)(tmain);
-  //user stack init
-  ustack[0] = 0xffffffff;        // fake return PC
-  ustack[1] = 0;                 // only one argument
-  ustack[2] = (uint)arg;               // argv pointer
-  ustack[3] = 0;
-  sp -= 4*4;
-  np->tf->esp = sp;
-  // Same file handles for the child thread
-  for(i = 0; i < NOFILE; i++)
-    if(proc->ofile[i])
-      np->ofile[i] = proc->ofile[i];
-  np->cwd = idup(proc->cwd);
-
-  pid = np->pid;
-
-  np->state = RUNNABLE;
-  safestrcpy(np->name, proc->name, sizeof(proc->name)); //TODO name and count number of child threads
-  //TODO copy of callcount
-  np->isthread = 1;
-  return pid;
-*/
+  //  PREVIOUS IMPLEMENTATION
+//  int i,
+//  int pid;
+//  struct proc *np;
   uint maxidx = 31;
   uint ssize = 4*maxidx + 4;
   uint sp = (uint)stack + ssize; //XXX get size of stack?
   uint * ustack = (uint *)stack;
+
+//  // Allocate process.
+//  if((np = allocproc()) == 0)
+//    return -1;
+//  // Copy process state from p.
+//  np->sz = proc->sz;
+//  np->pgdir = proc->pgdir;	//Same page table for both parent and child
+//  np->kstack = proc->kstack;
+//  np->parent = proc;
+////  *np->tf = *proc->tf;	//trap frame is -almost- the same
+//  *np->context = *proc->context;
+
   //user stack init
   ustack[maxidx - 0] = 0xffffffff;        // fake return PC
   ustack[maxidx - 1] = 1;                 // only one argument
@@ -517,10 +501,24 @@ int thread_create(void (*tmain)(void *), void *stack, void *arg){
   ustack[maxidx - 4] = 0;
   sp -= 4*4;
   proc->tf->esp = sp;
-  //  proc->context->ebp = (uint)ustack;
+  //  np->context->ebp = (uint)ustack;
   proc->tf->ebp = (uint)ustack + 4;
   proc->tf->eip = (uint)(tmain);
-  return 0;
+
+  // Same file handles for the child thread
+//  for(i = 0; i < NOFILE; i++)
+//    if(proc->ofile[i])
+//      np->ofile[i] = proc->ofile[i];
+//  np->cwd = idup(proc->cwd);
+
+//  pid = np->pid;
+
+//  np->state = RUNNABLE;
+//  safestrcpy(np->name, proc->name, sizeof(proc->name)); //TODO name and count number of child threads
+  //TODO copy of callcount
+//  np->isthread = 1;
+
+  return proc->pid;
 
 }
 

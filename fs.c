@@ -356,8 +356,8 @@ iunlockput(struct inode *ip)
 static uint
 bmap(struct inode *ip, uint bn)
 {
-  uint addr, *a;
-  struct buf *bp;
+  uint addr, *a, *sa;
+  struct buf *bp,*sbp;
 
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0)
@@ -366,26 +366,12 @@ bmap(struct inode *ip, uint bn)
   }
   bn -= NDIRECT;
 
-  //  if(bn < NINDIRECT){
-  //    // Load indirect block, allocating if necessary.
-  //    if((addr = ip->addrs[NDIRECT]) == 0)
-  //      ip->addrs[NDIRECT] = addr = balloc(ip->dev);
-  //    bp = bread(ip->dev, addr);
-  //    a = (uint*)bp->data;
-  //    if((addr = a[bn]) == 0){
-  //      a[bn] = addr = balloc(ip->dev);
-  //      log_write(bp);
-  //    }
-  //    brelse(bp);
-  //    return addr;
-  //  }
-
   // check if in single indirect blocks
   if(bn < SINDIRECT*NINDIRECT){
     uint indirect_idx = bn / NINDIRECT; // Indirect pointer in which the block pointer is
     // Load indirect block, allocating if necessary.
     if((addr = ip->addrs[NDIRECT + indirect_idx]) == 0)
-      ip->addrs[NDIRECT+ indirect_idx] = addr = balloc(ip->dev);
+      ip->addrs[NDIRECT + indirect_idx] = addr = balloc(ip->dev);
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data ;
     if((addr = a[bn % NINDIRECT]) == 0){
@@ -393,6 +379,39 @@ bmap(struct inode *ip, uint bn)
       log_write(bp);
     }
     brelse(bp);
+    return addr;
+
+  }
+  bn -= SINDIRECT*NINDIRECT;
+
+  // check if in double indirect blocks
+  if(bn < DINDIRECT*NINDIRECT*NINDIRECT){
+    uint dindirect_idx = bn / (NINDIRECT*NINDIRECT); // Double indirect pointer in which the block pointer is
+    // Load double indirect block, allocating if necessary.
+    if((addr = ip->addrs[NDIRECT + NINDIRECT+ dindirect_idx]) == 0)
+      ip->addrs[NDIRECT + NINDIRECT+ dindirect_idx] = addr = balloc(ip->dev);
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    uint sbn = bn % (NINDIRECT*NINDIRECT);
+
+    // at this point, a is a block of single indirect pointers, we
+    // just need to repeat the procedure of single indirect pointers
+
+    uint indirect_idx = sbn / NINDIRECT; // Indirect pointer in which the block pointer is
+    // Load indirect block, allocating if necessary.
+    if((addr = a[indirect_idx]) == 0)
+      a[indirect_idx] = addr = balloc(ip->dev);
+    sbp = bread(ip->dev, addr);
+    sa = (uint*)sbp->data;
+    if((addr = sa[sbn % NINDIRECT]) == 0){
+      sa[bn % NINDIRECT] = addr = balloc(ip->dev);
+      log_write(bp);
+      log_write(sbp);
+    }
+    brelse(bp);
+    brelse(sbp);
+
+
     return addr;
 
   }
