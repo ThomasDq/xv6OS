@@ -1,0 +1,51 @@
+I am expecting Left-handed > Footman ~ Tanenbaum in term of speed. Indeed, the left-handed is the most lightweighted
+in terms of mutexes and code, and it allows to reach maximum concurrency.
+
+Footman's should come second because it only allow n-1 threads to access the forks concurrently -and adds a semaphore to the Left-handed implementation-
+
+Tanenbaum's is much more heavyweighted than the two previous ones. It has the same amount of semaphores/mutexes as Footman's implementation but also keeps track
+of a philosopher-state for each philosopher. Hence more operations done per get/putfork function call.
+Nevertheless, it also allows maximum concurrency, so it may be as efficient as Footman's one.
+
+##
+Configuration:
+Number of philosopher = 20. Number of meals = 100. Seed =  42.
+Eating length = 0.6394267984578837. Thinking length = 0.025010755222666936.
+
+Time spend for 1 philosopher = 66.44375536805506
+Footman solution,     time elapsed: 128.178s
+Left-handed solution, time elapsed: 128.154s
+Tanenbaum's solution, time elapsed: 128.162s
+
+LH > F > T
+##
+
+##
+Configuration:
+Number of philosopher = 5. Number of meals = 200. Seed = 42.
+Eating length = 0.6394267984578837. Thinking length = 0.025010755222666936.
+
+Time spend sleeping per philosopher = 132.88751073611013
+Footman solution,     time elapsed: 320.174s
+Left-handed solution, time elapsed: 343.191s
+Tanenbaum's solution, time elapsed: 325.885s
+
+F > T > LH
+
+##
+
+##
+Configuration:
+Number of philosopher = 5. Number of meals = 20. Seed = 42.
+Eating length = 0.6394267984578837. Thinking length = 0.025010755222666936.
+
+Time spend sleeping per philosopher = 13.288751073611014
+Footman solution,     time elapsed: 32.045s
+Left-handed solution, time elapsed: 35.884s
+Tanenbaum's solution, time elapsed: 35.245s
+
+F > T > LH
+
+##
+
+Current results show a high standart deviation so I can't really make any conclusions

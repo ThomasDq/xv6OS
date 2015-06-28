@@ -474,24 +474,21 @@ procdump(void)
 int thread_create(void (*tmain)(void *), void *stack, void *arg){
 
   //  PREVIOUS IMPLEMENTATION
-//  int i,
-//  int pid;
-//  struct proc *np;
+  int i, pid;
+  struct proc *np;
   uint maxidx = 31;
   uint ssize = 4*maxidx + 4;
   uint sp = (uint)stack + ssize; //XXX get size of stack?
   uint * ustack = (uint *)stack;
 
-//  // Allocate process.
-//  if((np = allocproc()) == 0)
-//    return -1;
-//  // Copy process state from p.
-//  np->sz = proc->sz;
-//  np->pgdir = proc->pgdir;	//Same page table for both parent and child
-//  np->kstack = proc->kstack;
-//  np->parent = proc;
-////  *np->tf = *proc->tf;	//trap frame is -almost- the same
-//  *np->context = *proc->context;
+  // Allocate process.
+  if((np = allocproc()) == 0)
+    return -1;
+  // Copy process state from p.
+  np->sz = proc->sz;
+  np->pgdir = proc->pgdir;	//Same page table for both parent and child
+  np->parent = proc;
+  *np->tf = *proc->tf;	//trap frame is -almost- the same
 
   //user stack init
   ustack[maxidx - 0] = 0xffffffff;        // fake return PC
@@ -500,25 +497,24 @@ int thread_create(void (*tmain)(void *), void *stack, void *arg){
   ustack[maxidx - 3] = sp;
   ustack[maxidx - 4] = 0;
   sp -= 4*4;
-  proc->tf->esp = sp;
-  //  np->context->ebp = (uint)ustack;
-  proc->tf->ebp = (uint)ustack + 4;
-  proc->tf->eip = (uint)(tmain);
+  np->tf->esp = sp;
+  np->tf->ebp = (uint)ustack + 4;
+  np->tf->eip = (uint)(tmain);
 
   // Same file handles for the child thread
-//  for(i = 0; i < NOFILE; i++)
-//    if(proc->ofile[i])
-//      np->ofile[i] = proc->ofile[i];
-//  np->cwd = idup(proc->cwd);
+  for(i = 0; i < NOFILE; i++)
+    if(proc->ofile[i])
+      np->ofile[i] = proc->ofile[i];
+  np->cwd = idup(proc->cwd);
 
-//  pid = np->pid;
+  pid = np->pid;
 
-//  np->state = RUNNABLE;
-//  safestrcpy(np->name, proc->name, sizeof(proc->name)); //TODO name and count number of child threads
-  //TODO copy of callcount
-//  np->isthread = 1;
+  np->state = RUNNABLE;
+  safestrcpy(np->name, proc->name, sizeof(proc->name)); // TODO name and count number of child threads
+  // TODO copy of callcount
+  np->isthread = 1;
 
-  return proc->pid;
+  return pid;
 
 }
 
@@ -539,14 +535,16 @@ int thread_join(void **stack){
         // Found one.
         pid = p->pid;
         p->kstack = 0;
-        freevm(p->pgdir);
         p->state = UNUSED;
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
         release(&ptable.lock);
-        *stack= (void*)p->tf->esp;
+        uint * ebppoint = (uint*)p->tf->ebp;
+
+        *stack = (void*)((*ebppoint)-4);
+//        *stack = (void*)p->tf->ebp;// XXX
         return pid;
       }
     }
@@ -563,4 +561,37 @@ int thread_join(void **stack){
   return 0;
 }
 
+// MUTEX HANDELING
 
+int mutexindex = 0;
+struct spinlock mutexes[NMUTEX];
+
+int mtx_lock(int lock_id){
+  // check for index correctness
+  if(lock_id < 0 || lock_id > mutexindex){
+    return -1;
+  }
+  acquire(&mutexes[lock_id]);
+  return 0;
+}
+
+int mtx_create(int locked){
+  char* name = "mutex";
+  //Check is a mutex is available
+  if(mutexindex < NMUTEX){
+    initlock(&mutexes[mutexindex], name);
+    if(locked){
+      mtx_lock(mutexindex);
+    }
+    return(mutexindex++);
+  }
+  return -1;
+}
+
+int mtx_unlock(int lock_id){
+  if(lock_id < 0 || lock_id > mutexindex){
+    return -1;
+  }
+  release(&mutexes[lock_id]);
+  return 0;
+}

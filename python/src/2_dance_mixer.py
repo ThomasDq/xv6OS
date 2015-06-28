@@ -1,3 +1,5 @@
+#HOW TO RUN: change variables if wanted - lines 12-13 - and run without arguments
+
 from threading import Thread, Semaphore
 from time import sleep
 import sys
@@ -33,10 +35,46 @@ leaderArrived = Semaphore(0)
 followerArrived = Semaphore(0)
 # Loop condition for dances
 DANCETIME = True
-# Mutex that block access to dancefloor
-dancefloor_open = Semaphore(0)     
 ##
 
+## Dancefloor representation
+class Dancefloor:
+    # Mutex that block access to dancefloor status is given by closed value
+    dancefloor_open = Semaphore(0)
+    # Mutex protecting count  variables
+    dancefloor_mtx = Semaphore(1)
+    # Mutex that wakes up band leader when dancefloor is empty
+    dancefloor_empty = Semaphore(0)
+    #number of dancing couples on the dancefloor
+    count = 0
+    closed = True
+     
+    @staticmethod
+    def open():
+        Dancefloor.dancefloor_open.release()
+         
+    @staticmethod
+    def close():
+        Dancefloor.dancefloor_open.acquire()
+        Dancefloor.dancefloor_empty.acquire()
+     
+    @staticmethod   
+    def enter():
+        Dancefloor.dancefloor_open.acquire()
+        Dancefloor.dancefloor_mtx.acquire()
+        Dancefloor.count += 1
+        Dancefloor.dancefloor_mtx.release()
+        Dancefloor.dancefloor_open.release()
+         
+    @staticmethod
+    def exit():
+        Dancefloor.dancefloor_mtx.acquire()
+        Dancefloor.count -= 1
+        if Dancefloor.count == 0 and Dancefloor.closed:
+            Dancefloor.dancefloor_empty.release()
+        Dancefloor.dancefloor_mtx.release()
+## 
+        
 ## FIFO Queues for both leaders and followers
 class Queues:
     leadersQ = deque()
@@ -54,14 +92,12 @@ class Queues:
             Queues.nfollowers.release()
             
     @staticmethod
-    def pop(role):
-        if role == leader:
-            Queues.nleaders.acquire()
-            Queues.leadersQ.pop().release()
-        else:
-            Queues.nfollowers.acquire()
-            Queues.followersQ.pop().release()
-    
+    def pop():
+        Queues.nleaders.acquire()
+        Queues.nfollowers.acquire()
+        Queues.leadersQ.pop().release()
+        Queues.followersQ.pop().release()
+        
 ##    
     
 ## Generic dancer class -init makes it a leader or a follower-
@@ -91,18 +127,14 @@ class Dancer:
             # waiting for its turn
             self.queue_ticket.acquire()
 
+            # waiting for partner
+            Dancefloor.enter()
             # check if dancing is over at wake up
             if not DANCETIME:
                 printf(self.name + " PARTY IS OVER!")
                 break
-
-            # waiting for partner
             printf(self.name + " entering the floor.")
             
-            # check if song is not finished
-            dancefloor_open.acquire()
-            dancefloor_open.release()
-
             if self.role == leader:
                 global follower_name
                 
@@ -110,18 +142,19 @@ class Dancer:
                 partner_name = follower_name
                 self.arrivedSem.release()
                 printf(self.name + " and " + partner_name + " are dancing.")
+                # call to Queue to unlock next couple
+                Queues.pop() 
                 # This configuration blocks the Leader until the follower actually arrived,
-                # hence protection the follower_name variable
+                # hence protection of the follower_name variable
             else:
                 follower_name = self.name
                 self.arrivedSem.release()
                 self.partnerSem.acquire()
                 
-            # call to Queue to unlock next couple
-            Queues.pop(self.role) 
             
             sleep(timeondancefloor)
             
+            Dancefloor.exit()
             printf(self.name + " gets back in line.")               
             
 
@@ -138,20 +171,19 @@ class BandLeader:
         global dances, leader, follower
         
         # kick the first couple out of the waiting queue
-        Queues.pop(leader)
-        Queues.pop(follower)
+        Queues.pop()
         for _ in range(0,self.periods):
             for dance in dances:
                 printf("\n** Band Leader start playing " + dance + " **")
-                dancefloor_open.release()
+                Dancefloor.open()
                 sleep(dancelength)
+                Dancefloor.close()
                 printf("** Band Leader stop playing " + dance + " **\n")
-                dancefloor_open.acquire()
 ##                
 
                 
 if __name__ == '__main__':
-    
+    printf("Note : the message printing and the action it describe are not atomic, so it sometimes messes things up")
     # Bandleader
     bl = BandLeader()
     bandleader_th = Thread(target= bl.run)
@@ -180,7 +212,7 @@ if __name__ == '__main__':
     
     # wake up all dancers
         # when exiting the band leader still holds the dancefloor_open mutex
-    dancefloor_open.release()
+    Dancefloor.open()
     for d in dancers:
         d.queue_ticket.release()
         

@@ -8,9 +8,3 @@ struct spinlock {
   uint pcs[10];      // The call stack (an array of program counters)
                      // that locked the lock.
 };
-
-//#ifndef NULL
-//#define NULL   ((void *) 0)
-//#endif
-
-#define NMUTEX    32

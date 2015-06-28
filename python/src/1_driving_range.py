@@ -1,11 +1,14 @@
+#HOW TO RUN: change variables if wanted - lines 8-10 - and run without arguments
+
 from threading import Thread, Semaphore
 from time import sleep
-import sys
+import sys, random
 
 #Program variables
 NUMBER_GOLFERS = 5
-STASH_SIZE = 20    
+STASH_SIZE = 25    
 BUCKET_SIZE = 5
+RUNTIME = 5 #length of the simulation
 
 
 #Thread safe stdout print hack
@@ -13,10 +16,6 @@ BUCKET_SIZE = 5
 printf = lambda x: sys.stdout.write("%s\n" % x)
 
 #Global variables
-    # 5 binary semaphores
-    # 1 semaphore
-    # 5 global variables
-    # 3 global constant
     
     #while loop variables
 run = True
@@ -25,11 +24,6 @@ cart_run = True
     #field
 balls_on_field = 0
 field_lock = Semaphore(1)       # protects balls_on_field variable
-field_open = True               # boolean modifed by cart when it wants to enter the field
-waiting_lock = Semaphore(1)     # protects waiting_golfers variable
-field_open_wait = Semaphore(0)  # waiting semaphore for golfers when cart is on field
-
-waiting_golfers = 0             # golfers waiting for the field toopen
 
     #bucket
 bucket_size = BUCKET_SIZE
@@ -53,9 +47,7 @@ def grab_bucket(golfer_id):
     # if stash is empty, call cart 
     if stash == 0:
         #signal golfers that field is unavailable
-        field_open = False
         field_lock.acquire()
-        field_open = True               # since this thread has field_lock, no one can shoot a ball
         printf("##############################################\nSTASH = " + str(stash) + ";")
         stash_empty.release()           # signal cart
         stash_filled.acquire()          # wait for cart signal
@@ -77,19 +69,13 @@ def golfer(number):
         #fill one's bucket
         bucket = grab_bucket(golfer_id)
         for i in range(0,bucket):      # for each ball in bucket, shoot it
-            #check if field is safe
-            waiting_lock.acquire()
-            if not field_open:
-                printf(golfer_id + "has to wait to pursue.")
-                waiting_golfers += 1
-                waiting_lock.release()
-                field_open_wait.acquire()
-            else:
-                waiting_lock.release()
+
             #shoot
             field_lock.acquire()
             balls_on_field += 1             # swing (maybe simulate with a random sleep)
+            sleep(random.Random().random())
             printf(golfer_id + " hit ball " + str(i) + ".")
+            
             field_lock.release()
     printf(golfer_id + " stops.") 
 ##
@@ -111,16 +97,6 @@ def cart():
                ".\n##############################################")
         balls_on_field = 0 
         
-        waiting_lock.acquire()
-        local_wgolfers = waiting_golfers
-        waiting_golfers = 0
-        waiting_lock.release()
-        
-        # wake up all waiting golfers
-        for _ in range(0,local_wgolfers):
-            field_open_wait.release()
-
-        field_lock.release()
         stash_filled.release()
     printf("Cart stops.")    
 ##
@@ -138,14 +114,15 @@ if __name__ == '__main__':
         golfers_th.append(Thread(target=golfer, args=[i]))
         golfers_th[i].start()
     
-    sleep(5)
+    sleep(RUNTIME)
     run = False
     printf("Range is closing, calling for a bucket is not allowed past this point.")
     sleep(1)
-    cart_run = False
-    stash_empty.release()
     for i in range(0,n_golfers):
         golfers_th[i].join()
+    printf("##############################################\nSTASH = " + str(stash) + "; Car is doing a last run")
+    cart_run = False
+    stash_empty.release()
     cart_th.join()
     
     print("\n///---------\\\\\\\n    SUCCESS\n\\\\\\---------///")   

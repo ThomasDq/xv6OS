@@ -49,7 +49,7 @@ void prod (void*arg){
     }//end else
 
   }//end for i
-
+  exit();
 }
 
 void cons (void*arg){
@@ -83,20 +83,20 @@ void cons (void*arg){
     }//end else
 
   }//end for i
+  exit();
 }
 
 int main(int argc, char**argv){
   mutex = mtx_create(0);
-  uint** stacks[2];
+  uint* returnstack = 0;
   uint* stack1[128];
   uint* stack2[128];
-  stacks[0] = stack1;
-  stacks[1] = stack2;
 
 
   thread_create(*prod,stack1,(void*)0);
   thread_create(*cons,stack2,(void*)0);
-  thread_join((void*)stacks);
-  thread_join((void*)stacks);
+  thread_join((void*)returnstack);
+  thread_join((void*)returnstack);
+  exit();
   return 0;
 }
